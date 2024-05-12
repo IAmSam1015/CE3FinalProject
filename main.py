@@ -4,7 +4,7 @@ from dash.dependencies import Output, Input, State
 import pandas as pd
 import plotly.express as px
 
-file = "Airbnb_Data.csv"
+file = "Cleaned_Airbnb_Data.csv"
 data = pd.read_csv(file)
 
 # Convert 'host_response_rate' and 'review_scores_rating' to numeric values
@@ -18,47 +18,12 @@ data["review_scores_rating"] = pd.to_numeric(
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
-# Define the headers
+# Instead of defining the headers manually, get them directly from the DataFrame
 headers = [
-    "id",
-    "log_price",
-    "property_type",
-    "room_type",
-    "amenities",
-    "accommodates",
-    "bathrooms",
-    "bed_type",
-    "cancellation_policy",
-    "cleaning_fee",
-    "city",
-    "description",
-    "first_review",
-    "host_has_profile_pic",
-    "host_identity_verified",
-    "host_response_rate",
-    "host_since",
-    "instant_bookable",
-    "last_review",
-    "latitude",
-    "longitude",
-    "name",
-    "neighbourhood",
-    "number_of_reviews",
-    "review_scores_rating",
-    "zipcode",
-    "bedrooms",
-    "beds",
-]
-
-# Define the visualization types
-viz_types = [
-    "Bar chart",
-    "Heat map",
-    "Histogram",
-    "Pie chart",
-    "Scatter plot",
-    "Line chart",
-    "Stacked bar chart",
+    header
+    for header in data.columns.tolist()
+    if header
+    not in ["amenities", "first_review", "host_since", "last_review", "longitude"]
 ]
 
 app.layout = html.Div(
@@ -73,107 +38,73 @@ app.layout = html.Div(
             children=[
                 dcc.RadioItems(
                     options=[
-                        {"label": "Accommodation", "value": "accommodates"},
-                        {"label": "Reviews", "value": "number_of_reviews"},
-                        {"label": "Host Response Rate", "value": "host_response_rate"},
-                        {
-                            "label": "Review Scores Rating",
-                            "value": "review_scores_rating",
-                        },  # New radio button
-                        {
-                            "label": "Make a New Visualization",
-                            "value": "new_viz",
-                        },  # New radio button
+                        {"label": "Histogram", "value": "Histogram"},
+                        {"label": "Line Chart", "value": "Line Chart"},
+                        {"label": "Pie Chart", "value": "Pie Chart"},
                     ],
-                    value="accommodates",
-                    inline=True,
-                    id="my-radio-buttons-final",
+                    value=None,
+                    id="chart-type",
+                ),
+                dcc.Dropdown(
+                    options=[{"label": header, "value": header} for header in headers],
+                    value=None,
+                    id="data-type",
+                ),
+            ],
+        ),
+        html.Div(
+            className="row",
+            children=[
+                DataTable(
+                    data=data.to_dict("records"),
+                    page_size=11,
+                    style_table={"overflowX": "auto"},
                 )
             ],
         ),
         html.Div(
             className="row",
-            children=[
-                html.Div(
-                    className="six columns",
-                    children=[
-                        DataTable(
-                            data=data.to_dict("records"),
-                            page_size=11,
-                            style_table={"overflowX": "auto"},
-                        )
-                    ],
-                ),
-                html.Div(
-                    className="six columns",
-                    children=[dcc.Graph(figure={}, id="histo-chart-final")],
-                ),
-            ],
-        ),
-        html.Div(
-            className="row",
-            children=[
-                html.Div(
-                    className="six columns",
-                    children=[
-                        dcc.Checklist(
-                            options=[],
-                            id="header-checklist",
-                        ),
-                        dcc.Dropdown(
-                            options=[],
-                            id="viz-dropdown",
-                        ),
-                    ],
-                ),
-            ],
+            children=[dcc.Graph(figure={}, id="chart")],
         ),
     ]
 )
 
 
 @app.callback(
-    [Output("header-checklist", "options"), Output("viz-dropdown", "options")],
-    [Input("my-radio-buttons-final", "value")],
+    Output(component_id="chart", component_property="figure"),
+    Input(component_id="chart-type", component_property="value"),
+    Input(component_id="data-type", component_property="value"),
 )
-def toggle_menu(value):
-    if value == "new_viz":
-        return [{"label": header, "value": header} for header in headers], [
-            {"label": viz_type, "value": viz_type} for viz_type in viz_types
-        ]
+def update_graph(chart_type, data_type):
+    if data_type is None:
+        return {}
+    if chart_type == "Histogram":
+        fig = px.histogram(data, x=data_type)
+    elif chart_type == "Line Chart":
+        fig = px.line(data, x=data.index, y=data_type)
+    elif chart_type == "Pie Chart":
+        fig = px.pie(data, names=data_type)
     else:
-        return [], []
+        fig = {}
+
+    return fig
 
 
 @app.callback(
-    Output(component_id="histo-chart-final", component_property="figure"),
-    Input(component_id="my-radio-buttons-final", component_property="value"),
+    Output(component_id="data-type", component_property="options"),
+    Input(component_id="chart-type", component_property="value"),
 )
-def update_graph(col_chosen):
-    if col_chosen == "review_scores_rating":
-        # Create a distplot between 'review_scores_rating' and 'host_response_rate'
-        fig = px.histogram(
-            data, x="review_scores_rating", y="host_response_rate", histfunc="avg"
-        )
+def update_dropdown(chart_type):
+    if chart_type == "Pie Chart":
+        boolean_headers = [header for header in headers if data[header].dtype == "bool"]
+        return [{"label": header, "value": header} for header in boolean_headers]
+    elif chart_type in ["Histogram", "Line Chart"]:
+        numeric_headers = [
+            header for header in headers if pd.api.types.is_numeric_dtype(data[header])
+        ]
+        return [{"label": header, "value": header} for header in numeric_headers]
     else:
-        # Calculate the average for the selected option
-        avg_value = data[col_chosen].mean()
-
-        # Create a histogram of the selected column
-        fig = px.histogram(data, x=col_chosen)
-
-        # Add a vertical line to represent the average
-        fig.add_shape(
-            type="line",
-            x0=avg_value,
-            x1=avg_value,
-            y0=0,
-            y1=1,
-            yref="paper",
-            line=dict(color="red"),
-        )
-
-    return fig
+        return [{"label": header, "value": header} for header in headers]
 
 
 if __name__ == "__main__":
