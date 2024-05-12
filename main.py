@@ -7,7 +7,7 @@ import plotly.express as px
 file = "Cleaned_Airbnb_Data.csv"
 data = pd.read_csv(file)
 
-# Convert 'host_response_rate' and 'review_scores_rating' to numeric values
+
 data["host_response_rate"] = (
     data["host_response_rate"].str.rstrip("%").astype("float") / 100.0
 )
@@ -18,13 +18,13 @@ data["review_scores_rating"] = pd.to_numeric(
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
-# Instead of defining the headers manually, get them directly from the DataFrame
 headers = [
     header
     for header in data.columns.tolist()
     if header
     not in ["amenities", "first_review", "host_since", "last_review", "longitude"]
 ]
+
 
 app.layout = html.Div(
     [
