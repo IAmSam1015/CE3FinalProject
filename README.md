@@ -36,5 +36,3 @@ Final Project for Professional Elective 3
    ```bash
    python main.py
    ```
-
-   Replace `main.py` with the name of your Python file containing the Dash application code.
